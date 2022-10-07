@@ -357,8 +357,10 @@ if(MSYS AND CMAKE_CXX_COMPILER_ID STREQUAL Clang)
     set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" CACHE INTERNAL "prefix search path for find_XXXX" FORCE)
 endif()
 
-# Add support for Homebrew, MacPorts and Fink on OS X
-if(APPLE)
+# Add support for Homebrew, MacPorts and Fink on macOS
+option(DISABLE_MACOS_PACKAGE_MANAGERS "Set to TRUE to disable support for macOS Homebrew, MacPorts and Fink." FALSE)
+
+if(APPLE AND NOT DISABLE_MACOS_PACKAGE_MANAGERS)
     include(MacPackageManagers)
 endif()
 
@@ -602,10 +604,10 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID STREQUAL Clang)
 
     # common optimization flags
     if(NOT (APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL Clang AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.3))
-        set(MY_C_OPT_FLAGS ${MY_C_OPT_FLAGS} -O2 -fomit-frame-pointer ${LTO_FLAGS})
+        set(MY_C_OPT_FLAGS ${MY_C_OPT_FLAGS} -Ofast -fomit-frame-pointer ${LTO_FLAGS})
     else()
         # LTO and -fomit-frame-pointer generate broken binaries on Lion with XCode 4.2 tools
-        set(MY_C_OPT_FLAGS ${MY_C_OPT_FLAGS} -O2)
+        set(MY_C_OPT_FLAGS ${MY_C_OPT_FLAGS} -Ofast)
     endif()
 
     # Common flags.
@@ -613,42 +615,22 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID STREQUAL Clang)
 
     include(CheckCXXCompilerFlag)
 
-    # Optimize for Core2 and tune for Rocketlake on macOS and Zen3 for the rest
+    # Optimize for Core2 and tune for Skylake on macOS and Zen3 for the rest
     # on X86_64.
     if(X86_64)
-        set(MY_C_FLAGS ${MY_C_FLAGS} -march=core2)
-        if(APPLE)
-            set(MY_C_FLAGS ${MY_C_FLAGS} -mtune=rocketlake)
-        else()
-            check_cxx_compiler_flag("-mtune=znver3" ZEN3_TUNE_FLAG)
-            if(ZEN3_TUNE_FLAG)
-                set(MY_C_FLAGS ${MY_C_FLAGS} -mtune=znver3)
-            else()
-                check_cxx_compiler_flag("-mtune=znver2" ZEN2_TUNE_FLAG)
-                if(ZEN2_TUNE_FLAG)
-                    set(MY_C_FLAGS ${MY_C_FLAGS} -mtune=znver2)
-                else()
-                    check_cxx_compiler_flag("-mtune=znver1" ZEN1_TUNE_FLAG)
-                    if(ZEN1_TUNE_FLAG)
-                        set(MY_C_FLAGS ${MY_C_FLAGS} -mtune=znver1)
-                    else()
-                        check_cxx_compiler_flag("-mtune=skylake-avx512" SKYLAKE_AVX512_TUNE_FLAG)
-                        if(SKYLAKE_AVX512_TUNE_FLAG)
-                            set(MY_C_FLAGS ${MY_C_FLAGS} -mtune=skylake-avx512)
-                        else()
-                            check_cxx_compiler_flag("-mtune=skylake" SKYLAKE_TUNE_FLAG)
-                            if(SKYLAKE_TUNE_FLAG)
-                                set(MY_C_FLAGS ${MY_C_FLAGS} -mtune=skylake)
-                            endif()
-                        endif()
-                    endif()
-                endif()
-            endif()
-        endif()
-    # Optimize for pentium-mmx and tune for Core2 on X86_32.
+        set(MY_C_FLAGS ${MY_C_FLAGS} -march=core2 -mtune=generic)
+    # Optimize for pentium-mmx and tune for Core2 on X86_32 for older XP builds.
     elseif(X86_32)
         set(MY_C_FLAGS ${MY_C_FLAGS} -march=pentium-mmx -mtune=core2)
     endif()
+
+    # Check for -fopenmp=libomp on clang.
+    #    if(CMAKE_CXX_COMPILER_ID STREQUAL Clang)
+    #        check_cxx_compiler_flag("-fopenmp=libomp" FOPENMP_LIBOMP_FLAG)
+    #        if(FOPENMP_LIBOMP_FLAG)
+    #            set(MY_C_FLAGS ${MY_C_FLAGS} -fopenmp=libomp)
+    #        endif()
+    #    endif()
 
     # common debug flags
     if(CMAKE_COMPILER_IS_GNUCXX)
